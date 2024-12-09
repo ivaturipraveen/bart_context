@@ -4,10 +4,10 @@ import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer, CrossEncoder
 import openai
-
+import os
 app = Flask(__name__)
 
-openai.api_key = os.environ.get("api_key") 
+openai.api_key = os.environ.get("OPENAI_API_KEY") 
 
 # Load FAISS index and metadata
 def load_faiss_and_data(embedding_file, faiss_index_file, data_file):
