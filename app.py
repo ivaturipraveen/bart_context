@@ -33,7 +33,7 @@ def generate_response_with_openai(query, top_texts, max_texts=3):
     )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=150
         )
