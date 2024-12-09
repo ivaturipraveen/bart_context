@@ -1,0 +1,8 @@
+flask
+sentence-transformers
+faiss-cpu
+numpy
+openai
+torch
+transformers
+
