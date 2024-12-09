@@ -2,7 +2,7 @@ flask
 sentence-transformers
 faiss-cpu
 numpy
-openai
+openai==0.28
 torch
 transformers
 
