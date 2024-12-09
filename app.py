@@ -7,6 +7,8 @@ import openai
 
 app = Flask(__name__)
 
+openai.api_key = os.environ.get("api_key") 
+
 # Load FAISS index and metadata
 def load_faiss_and_data(embedding_file, faiss_index_file, data_file):
     embeddings = np.load(embedding_file)
