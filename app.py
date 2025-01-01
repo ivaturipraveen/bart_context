@@ -120,7 +120,7 @@ def query_faiss():
         data = request.json
         query = data['query']
         history = data.get('history', [])
-        top_k = data.get('top_k', 5)
+        top_k = data.get('top_k', 4)
 
         # Generate a combined embedding for the query
         query_embedding = get_combined_query_embedding(query, model)
