@@ -33,7 +33,7 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
     if top_metadata:
         top_metadata = top_metadata[:max_texts]
 
-    # Construct the prompt
+   # Construct the prompt
     prompt = (
         "You are an intelligent assistant trained to provide structured, concise, and contextually accurate answers. "
         "Maintain continuity by considering the user's conversation history, if provided. Based on the given history and information, "
@@ -41,7 +41,8 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
         "### Additional Instructions ###\n"
         "1. Ensure all answers are presented strictly in the form of bullet points.\n"
         "2. Focus on clarity and brevity while ensuring the response is comprehensive and directly addresses the query.\n"
-     )
+        "3. Avoid including suggestions or offering further assistance unless explicitly requested by the user.\n"
+    )
 
     if history:
         prompt += "### Conversation History ###\n"
@@ -56,10 +57,11 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
     prompt += (
         "\n### Instructions for Assistant ###\n"
         "1. Use the conversation history to maintain continuity in your response.\n"
-        "2.Focus on information that combines all relevant parts of the query.\n"
+        "2. Focus on information that combines all relevant parts of the query.\n"
         "3. Answer the current query clearly and concisely, ensuring the response is accurate and relevant.\n"
         "4. Include the source of the information when presenting the response.\n"
         "5. Avoid using apologetic language like 'I’m sorry'. Instead, confidently provide the best available information.\n"
+        "6. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
     )
 
     try:
@@ -75,10 +77,22 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
 
 # Combine query keywords into a single embedding
 def get_combined_query_embedding(query, model):
-    keywords = query.split()  # Split into keywords; improve with advanced keyword extraction if needed
-    embeddings = model.encode(keywords).astype('float32')
-    combined_embedding = np.mean(embeddings, axis=0)  # Use mean to combine embeddings
-    return np.array([combined_embedding])
+    embedding = model.encode([query]).astype('float32')  # Use the entire query as a single embedding
+    return embedding
+
+# Format the sources to include only the PDF name and URL
+def format_sources(metadata):
+    formatted_sources = []
+    for meta in metadata:
+        if 'pdf_name' in meta and 'pdf_url' in meta:
+            formatted_sources.append(f"{meta['pdf_name']}: {meta['pdf_url']}")
+    return formatted_sources
+
+# Clean up the final response by removing unnecessary text
+def clean_final_response(response):
+    if "Please note" in response:
+        response = response.split("Please note")[0].strip()
+    return response
 
 # Deduplicate metadata
 def deduplicate_metadata(metadata):
@@ -90,7 +104,6 @@ def deduplicate_metadata(metadata):
             seen.add(meta_key)
             unique.append(meta)
     return unique
-
 
 
 # Load resources
@@ -117,30 +130,33 @@ def query_faiss():
         top_texts = [texts[idx] for idx in indices[0]]
         top_metadata = [metadata[idx] for idx in indices[0]]
 
-        # Perform keyword matching to refine results
-        keywords = query.split()
-        refined_texts = sorted(
-            top_texts,
-            key=lambda text: sum(keyword.lower() in text.lower() for keyword in keywords),
-            reverse=True,
-        )
+        # Perform exact keyword matching to refine results
+        refined_texts = [text for text in top_texts if all(keyword.lower() in text.lower() for keyword in query.split())]
+
+        if not refined_texts:
+            refined_texts = top_texts  # Fallback to FAISS results if no exact matches
 
         # Rerank results
         reranked_texts, _ = rerank_results(query, refined_texts)
         final_response = generate_response_with_openai(query, reranked_texts, history=history)
 
+        # Clean the response
+        final_response = clean_final_response(final_response)
+
         # Deduplicate metadata
         unique_metadata = deduplicate_metadata(top_metadata)
+
+        # Format sources and remove duplicates
+        formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
 
         return jsonify({
             "query": query,
             "response": final_response,
-            "sources": unique_metadata[:2]
+            "sources": formatted_sources
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Run the Flask app
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
