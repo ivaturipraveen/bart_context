@@ -33,7 +33,7 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
     if top_metadata:
         top_metadata = top_metadata[:max_texts]
 
-   # Construct the prompt
+    # Construct the prompt
     prompt = (
         "You are an intelligent assistant trained to provide structured, concise, and contextually accurate answers. "
         "Maintain continuity by considering the user's conversation history, if provided. Based on the given history and information, "
@@ -42,6 +42,8 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
         "1. Ensure all answers are presented strictly in the form of bullet points.\n"
         "2. Focus on clarity and brevity while ensuring the response is comprehensive and directly addresses the query.\n"
         "3. Avoid including suggestions or offering further assistance unless explicitly requested by the user.\n"
+        "4. Ensure the response is strictly humanized, avoiding overly robotic or generic phrasing.\n"
+        "5. Ensure that the result is strictly humanized and written in American English format.\n"
     )
 
     if history:
@@ -60,8 +62,9 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
         "2. Focus on information that combines all relevant parts of the query.\n"
         "3. Answer the current query clearly and concisely, ensuring the response is accurate and relevant.\n"
         "4. Include the source of the information when presenting the response.\n"
-        "5. Avoid using apologetic language like 'I’m sorry'. Instead, confidently provide the best available information.\n"
+        "5. Avoid using apologetic language like 'I’m sorry.' Instead, confidently provide the best available information.\n"
         "6. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
+        "7. Ensure the response is humanized and adheres to American English conventions.\n"
     )
 
     try:
@@ -94,6 +97,20 @@ def clean_final_response(response):
         response = response.split("Please note")[0].strip()
     return response
 
+# Format the response as markdown
+def format_markdown_response(query, final_response, sources):
+    markdown_response = f"# Query: {query}\n\n"
+    markdown_response += "## Response\n\n"
+    markdown_response += final_response + "\n\n"
+
+    if sources:
+        markdown_response += "## Sources\n\n"
+        for source in sources:
+            pdf_name, pdf_url = source.split(": ", 1)
+            markdown_response += f"- [{pdf_name}]({pdf_url})\n"
+
+    return markdown_response
+
 # Deduplicate metadata
 def deduplicate_metadata(metadata):
     seen = set()
@@ -105,58 +122,50 @@ def deduplicate_metadata(metadata):
             unique.append(meta)
     return unique
 
+# Process a query
+def process_query(query, index, texts, metadata, model, history=None, top_k=5):
+    query_embedding = get_combined_query_embedding(query, model)
+    distances, indices = index.search(query_embedding, top_k)
+    top_texts = [texts[idx] for idx in indices[0]]
+    top_metadata = [metadata[idx] for idx in indices[0]]
 
-# Load resources
-output_dir = './embeddings_output'
-embedding_file = f"{output_dir}/combined_embeddings.npy"
-faiss_index_file = f"{output_dir}/combined_faiss.index"
-data_file = f"{output_dir}/processed_data.json"
-embeddings, index, texts, metadata = load_faiss_and_data(embedding_file, faiss_index_file, data_file)
-model = SentenceTransformer('all-MiniLM-L6-v2')
+    refined_texts = [text for text in top_texts if all(keyword.lower() in text.lower() for keyword in query.split())]
+    if not refined_texts:
+        refined_texts = top_texts
 
+    reranked_texts, _ = rerank_results(query, refined_texts)
+    final_response = generate_response_with_openai(query, reranked_texts, history=history)
+    final_response = clean_final_response(final_response)
+
+    unique_metadata = deduplicate_metadata(top_metadata)
+    formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
+    return format_markdown_response(query, final_response, formatted_sources)
+
+# Flask route for processing queries
 @app.route('/query', methods=['POST'])
-def query_faiss():
-    try:
-        data = request.json
-        query = data['query']
-        history = data.get('history', [])
-        top_k = data.get('top_k', 4)
+def query_handler():
+    data = request.json
+    query = data.get('query')
+    history = data.get('history', [])
+    top_k = data.get('top_k', 5)
 
-        # Generate a combined embedding for the query
-        query_embedding = get_combined_query_embedding(query, model)
+    if not query:
+        return jsonify({"error": "Query is required."}), 400
 
-        # Search FAISS for the top results
-        distances, indices = index.search(query_embedding, top_k)
-        top_texts = [texts[idx] for idx in indices[0]]
-        top_metadata = [metadata[idx] for idx in indices[0]]
+    # Load precomputed data
+    output_dir = './embeddings_output'
+    embedding_file = f"{output_dir}/combined_embeddings.npy"
+    faiss_index_file = f"{output_dir}/combined_faiss.index"
+    data_file = f"{output_dir}/processed_data.json"
 
-        # Perform exact keyword matching to refine results
-        refined_texts = [text for text in top_texts if all(keyword.lower() in text.lower() for keyword in query.split())]
+    embeddings, index, texts, metadata = load_faiss_and_data(
+        embedding_file, faiss_index_file, data_file
+    )
+    model = SentenceTransformer('all-MiniLM-L6-v2')
 
-        if not refined_texts:
-            refined_texts = top_texts  # Fallback to FAISS results if no exact matches
+    response = process_query(query, index, texts, metadata, model, history=history, top_k=top_k)
+    return jsonify({"response": response})
 
-        # Rerank results
-        reranked_texts, _ = rerank_results(query, refined_texts)
-        final_response = generate_response_with_openai(query, reranked_texts, history=history)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
-        # Clean the response
-        final_response = clean_final_response(final_response)
-
-        # Deduplicate metadata
-        unique_metadata = deduplicate_metadata(top_metadata)
-
-        # Format sources and remove duplicates
-        formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
-
-        return jsonify({
-            "query": query,
-            "response": final_response,
-            "sources": formatted_sources
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
