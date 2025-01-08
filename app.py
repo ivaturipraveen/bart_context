@@ -34,17 +34,18 @@ if top_metadata:
 top_metadata = top_metadata[:max_texts]
 
 # Construct the prompt
-    prompt = (
-        "You are an intelligent assistant trained to provide structured, concise, and contextually accurate answers. "
-        "Maintain continuity by considering the user's conversation history, if provided. Based on the given history and information, "
-        "provide a clear and relevant response to the current query. Include the source of information if available.\n\n"
-        "### Additional Instructions ###\n"
-        "1. Ensure all answers are presented strictly in the form of bullet points.\n"
-        "2. Focus on clarity and brevity while ensuring the response is comprehensive and directly addresses the query.\n"
-        "3. Avoid including suggestions or offering further assistance unless explicitly requested by the user.\n"
-        "4. Ensure the response is strictly humanized, avoiding overly robotic or generic phrasing.\n"
-        "5. Ensure that the result is strictly humanized and written in American English format.\n"
-    )
+prompt = (
+    "You are an intelligent assistant trained to provide structured, concise, and contextually accurate answers. "
+    "Maintain continuity by considering the user's conversation history, if provided. Based on the given history and information, "
+    "provide a clear and relevant response to the current query. Include the source of information if available.\n\n"
+    "### Additional Instructions ###\n"
+    "1. Ensure all answers are presented strictly in the form of bullet points.\n"
+    "2. Focus on clarity and brevity while ensuring the response is comprehensive and directly addresses the query.\n"
+    "3. Avoid including suggestions or offering further assistance unless explicitly requested by the user.\n"
+    "4. Ensure the response is strictly humanized, avoiding overly robotic or generic phrasing.\n"
+    "5. Ensure that the result is strictly humanized and written in American English format.\n"
+)
+
 
 if history:
 prompt += "### Conversation History ###\n"
@@ -57,16 +58,17 @@ source_info = f" (Source: {top_metadata[i]})" if top_metadata else ""
 prompt += f"{i+1}. {text}{source_info}\n"
 
 prompt += (
-        "\n### Instructions for Assistant ###\n"
-        "1. Use the conversation history to maintain continuity in your response.\n"
-        "2. Focus on information that combines all relevant parts of the query.\n"
-        "3. Answer the current query clearly and concisely, ensuring the response is accurate and relevant.\n"
-        "4. Include the source of the information when presenting the response.\n"
-        "5. Avoid using apologetic language like 'I’m sorry.' Instead, confidently provide the best available information.\n"
-        "6. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
-        "7. Ensure the response is humanized and adheres to American English conventions.\n"
-        “8. Format the output in Markdown with elements such as headings, bullet points, or tables.\n"
-    )
+    "\n### Instructions for Assistant ###\n"
+    "1. Use the conversation history to maintain continuity in your response.\n"
+    "2. Focus on information that combines all relevant parts of the query.\n"
+    "3. Answer the current query clearly and concisely, ensuring the response is accurate and relevant.\n"
+    "4. Include the source of the information when presenting the response.\n"
+    "5. Avoid using apologetic language like 'I’m sorry.' Instead, confidently provide the best available information.\n"
+    "6. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
+    "7. Ensure the response is humanized and adheres to American English conventions.\n"
+    "8. Format the output in Markdown with elements such as headings, bullet points, or tables.\n"
+)
+
 try:
 response = openai.ChatCompletion.create(
 model="gpt-4",
