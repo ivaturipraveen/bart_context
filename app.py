@@ -16,8 +16,9 @@ def load_faiss_and_data(embedding_file, faiss_index_file, data_file):
 embeddings = np.load(embedding_file)
 index = faiss.read_index(faiss_index_file)
 with open(data_file, 'r') as f:
-data = json.load(f)
+    data = json.load(f)
 return embeddings, index, data["texts"], data["metadata"]
+
 
 # Rerank results with CrossEncoder
 def rerank_results(query, top_texts):
