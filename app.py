@@ -97,9 +97,8 @@ def clean_final_response(response):
         response = response.split("Please note")[0].strip()
     return response
 
-def format_markdown_response(query, final_response, sources):
-    markdown_response = f"# Query: {query}\n\n"
-    markdown_response += "## Response\n\n"
+def format_markdown_response(final_response, sources):
+    markdown_response = "## Response\n\n"
     markdown_response += final_response + "\n\n"
 
     if sources:
@@ -150,7 +149,7 @@ def test_faiss_with_reranking_and_generation(query, index, texts, metadata, mode
     # Format sources and remove duplicates
     formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
 
-    formatted_markdown = format_markdown_response(query, final_response, formatted_sources)
+    formatted_markdown = format_markdown_response(final_response, formatted_sources)
     return formatted_markdown
 
 @app.route('/query', methods=['POST'])
