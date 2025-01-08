@@ -67,7 +67,6 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
         "5. Avoid using apologetic language like 'I’m sorry.' Instead, confidently provide the best available information.\n"
         "6. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
         "7. Ensure the response is humanized and adheres to American English conventions.\n"
-        "8. Format the output in Markdown with elements such as headings, bullet points, or tables.\n"
     )
 
     try:
@@ -102,6 +101,19 @@ def clean_final_response(response):
     if "Please note" in response:
         response = response.split("Please note")[0].strip()
     return response
+    
+def format_markdown_response(query, final_response, sources):
+    markdown_response = f"# Query: {query}\n\n"
+    markdown_response += "## Response\n\n"
+    markdown_response += final_response + "\n\n"
+
+    if sources:
+        markdown_response += "## Sources\n\n"
+        for source in sources:
+            pdf_name, pdf_url = source.split(": ", 1)
+            markdown_response += f"- [{pdf_name}]({pdf_url})\n"
+
+    return markdown_response
 
 # Deduplicate metadata
 def deduplicate_metadata(metadata):
@@ -163,10 +175,14 @@ def query_faiss():
         # Format sources and remove duplicates
         formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
 
+        # Format response in Markdown
+        markdown_response = format_markdown_response(query, final_response, formatted_sources)
+
         return jsonify({
-            "query": query,
-            "response": final_response,
-            "sources": formatted_sources
+            # "query": query,
+            # "response": final_response,
+            # "sources": formatted_sources,
+            "markdown_response": markdown_response
         })
 
     except Exception as e:
