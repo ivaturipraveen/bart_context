@@ -44,9 +44,10 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
     "1. For queries related to your identity, always respond: 'I am the BART Assistant, trained to assist you with information about BART.'\n"
     "2. For all other queries, answer clearly and concisely, focusing on the user's needs.\n"
     "3. Maintain a professional, human-like tone in your responses.\n"
-    "4. If relevant, include sources or references to support your answers.\n"
-    "5. Do not provide information outside the scope of BART-related queries.\n"
-    "6. Strictly ensure the output is humanized and adheres to American English conventions in grammar, spelling, and phrasing.\n"
+    "4. Answer queries without including the sources in the main content.\n"
+    "5. At the end of the response, include sources or references to support your answers under a separate heading: '### Sources'.\n"
+    "6. Do not provide information outside the scope of BART-related queries.\n"
+    "7. Strictly ensure the output is humanized and adheres to American English conventions in grammar, spelling, and phrasing.\n"
     )
 
     if history:
@@ -64,11 +65,15 @@ def generate_response_with_openai(query, top_texts, top_metadata=None, history=N
     "1. Use the conversation history to maintain continuity in your response.\n"
     "2. Focus on information that combines all relevant parts of the query.\n"
     "3. Answer the current query clearly and concisely, ensuring the response is accurate and relevant.\n"
-    "4. Include the source of the information when presenting the response.\n"
-    "5. Avoid using apologetic language like 'I’m sorry'. Instead, confidently provide the best available information.\n"
-    "6. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
-    "7. Strictly ensure the response is humanized and adheres to American English conventions.\n"
+    "4. Do not include sources within the main content of the response.\n"
+    "5. Instead, provide a separate list of sources at the end under the heading '### Sources'.\n"
+    "6. Avoid using apologetic language like 'I’m sorry'. Instead, confidently provide the best available information.\n"
+    "7. Avoid making suggestions, providing additional context, or offering help unless explicitly required.\n"
+    "8. Strictly ensure the response is humanized and adheres to American English conventions.\n"
+    "9. Do not include sources within the content of your response.\n"
+
     )
+
 
     try:
         response = openai.ChatCompletion.create(
@@ -86,29 +91,46 @@ def get_combined_query_embedding(query, model):
     embedding = model.encode([query]).astype('float32')  # Use the entire query as a single embedding
     return embedding
 
-# Format the sources to include only the PDF name and URL, removing the "Sources" heading
+# Clean up the final response by removing unnecessary text
+def clean_final_response(response):
+    # Remove any '### Sources' or 'Sources:' section from the response
+    if "### Sources" in response:
+        response = response.split("### Sources")[0].strip()
+    elif "Sources:" in response:
+        response = response.split("Sources:")[0].strip()
+
+    # Remove "Please note" text if present
+    if "Please note" in response:
+        response = response.split("Please note")[0].strip()
+
+    return response
+
 def format_sources(metadata):
     formatted_sources = []
     for meta in metadata:
-        if 'pdf_name' in meta and 'pdf_url' in meta:
+        if 'pdf_name' in meta and 'pdf_url' in meta and 'http' in meta['pdf_url']:
             formatted_sources.append(f"{meta['pdf_name']}: {meta['pdf_url']}")
     return formatted_sources
 
-# Clean up the final response by removing unnecessary text
-def clean_final_response(response):
-    if "Please note" in response:
-        response = response.split("Please note")[0].strip()
-    return response
+def format_markdown_response(query, final_response, sources):
+    # Clean the response first
+    final_response = clean_final_response(final_response)
 
-def format_markdown_response(final_response, sources):
-    markdown_response = "## Response\n\n"
-    markdown_response += final_response + "\n\n"
+    # Start building the markdown response
+    markdown_response = f"# Query: {query}\n\n"
+    markdown_response += "## Response\n\n"
+    markdown_response += final_response
 
-    if sources:
-        markdown_response += "## Sources\n\n"
-        for source in sources:
-            pdf_name, pdf_url = source.split(": ", 1)
-            markdown_response += f"- [{pdf_name}]({pdf_url})\n"
+    # Only add sources if they contain valid URLs
+    valid_sources = [source for source in sources if ":" in source and "http" in source]
+    if valid_sources:
+        markdown_response += "\n\n"  # Add spacing between response and sources
+        for source in valid_sources:
+            try:
+                pdf_name, pdf_url = source.split(": ", 1)
+                markdown_response += f"[{pdf_name}]({pdf_url})\n"
+            except ValueError:
+                continue  # Skip malformed sources
 
     return markdown_response
 
@@ -117,14 +139,15 @@ def deduplicate_metadata(metadata):
     seen = set()
     unique = []
     for meta in metadata:
-        meta_key = tuple(sorted(meta.items()))  # Create a unique key for each dictionary
-        if meta_key not in seen:
-            seen.add(meta_key)
-            unique.append(meta)
+        if 'pdf_url' in meta and 'http' in meta['pdf_url']:
+            meta_key = tuple(sorted(meta.items()))
+            if meta_key not in seen:
+                seen.add(meta_key)
+                unique.append(meta)
     return unique
 
 # Test function
-def test_faiss_with_reranking_and_generation(query, index, texts, metadata, model, history=None, top_k=5):
+def test_faiss_with_reranking_and_generation(query, index, texts, metadata, model, history=None, top_k=4):
     # Generate a combined embedding for the query
     query_embedding = get_combined_query_embedding(query, model)
 
@@ -152,7 +175,7 @@ def test_faiss_with_reranking_and_generation(query, index, texts, metadata, mode
     # Format sources and remove duplicates
     formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
 
-    formatted_markdown = format_markdown_response(final_response, formatted_sources)
+    formatted_markdown = format_markdown_response(query, final_response, formatted_sources)
     return formatted_markdown
 
 @app.route('/query', methods=['POST'])
