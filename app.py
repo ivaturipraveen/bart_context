@@ -102,7 +102,6 @@ def clean_final_response(response):
     # Remove "Please note" text if present
     if "Please note" in response:
         response = response.split("Please note")[0].strip()
-
     return response
 
 def format_sources(metadata):
@@ -112,27 +111,28 @@ def format_sources(metadata):
             formatted_sources.append(f"{meta['pdf_name']}: {meta['pdf_url']}")
     return formatted_sources
 
-def format_markdown_response(query, final_response, sources):
+def format_html_response(query, final_response, sources):
     # Clean the response first
     final_response = clean_final_response(final_response)
 
-    # Start building the markdown response
-    markdown_response = f"# Query: {query}\n\n"
-    markdown_response += "## Response\n\n"
-    markdown_response += final_response
+    # Start building the HTML response
+    html_response = f"<h1>Query: {query}</h1>\n"
+    html_response += "<h2>Response</h2>\n"
+    html_response += f"<p>{final_response}</p>\n"
 
     # Only add sources if they contain valid URLs
     valid_sources = [source for source in sources if ":" in source and "http" in source]
     if valid_sources:
-        markdown_response += "\n\n"  # Add spacing between response and sources
+        html_response += "<h2>Sources</h2>\n<ul>\n"  # Start an unordered list
         for source in valid_sources:
             try:
                 pdf_name, pdf_url = source.split(": ", 1)
-                markdown_response += f"[{pdf_name}]({pdf_url})\n"
+                html_response += f"  <li><a href='{pdf_url}' target='_blank'>{pdf_name}</a></li>\n"
             except ValueError:
                 continue  # Skip malformed sources
+        html_response += "</ul>\n"  # Close the unordered list
 
-    return markdown_response
+    return html_response
 
 # Deduplicate metadata
 def deduplicate_metadata(metadata):
@@ -175,13 +175,12 @@ def test_faiss_with_reranking_and_generation(query, index, texts, metadata, mode
     # Format sources and remove duplicates
     formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
 
-    formatted_markdown = format_markdown_response(query, final_response, formatted_sources)
-    return formatted_markdown
+    formatted_html = format_html_response(query, final_response, formatted_sources)
+    return formatted_html)
 
 @app.route('/query', methods=['POST'])
 def query():
     data = request.get_json()
-
     query = data.get('query')
     history = data.get('history', [])
 
