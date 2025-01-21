@@ -176,7 +176,7 @@ def test_faiss_with_reranking_and_generation(query, index, texts, metadata, mode
     formatted_sources = list(dict.fromkeys(format_sources(unique_metadata[:2])))
 
     formatted_html = format_html_response(query, final_response, formatted_sources)
-    return formatted_html)
+    return formatted_html
 
 @app.route('/query', methods=['POST'])
 def query():
