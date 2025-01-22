@@ -118,12 +118,12 @@ def format_html_response(query, final_response, sources):
     # Start building the HTML response
     html_response = f"<h1>Query: {query}</h1>\n"
     html_response += "<h2>Response</h2>\n"
-    html_response += f"<p>{final_response}</p>\n"
+    html_response += f"<p>{final_response}</p>"
 
     # Only add sources if they contain valid URLs
     valid_sources = [source for source in sources if ":" in source and "http" in source]
     if valid_sources:
-        html_response += "<h2>Sources</h2>\n<ul>\n"  # Start an unordered list
+        html_response += "<ul>\n"  # Start an unordered list
         for source in valid_sources:
             try:
                 pdf_name, pdf_url = source.split(": ", 1)
